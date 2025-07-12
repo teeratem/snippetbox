@@ -1,29 +1,31 @@
 package main
 
 import (
-	"log"
+	"flag"
+	"log/slog"
 	"net/http"
+	"os"
 )
 
+type application struct {
+	logger *slog.Logger
+}
+
 func main() {
-	mux := http.NewServeMux()
+	addr := flag.String("addr", ":4000", "HTTP network address")
+	flag.Parse()
 
-	// Note that the path given to the http.Dir function is relative to the project
-	// directory root
-	fileServer := http.FileServer(http.Dir("./ui/static/"))
+	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
-	// Use the mux.Handle() function to register the file server as the handler for
-	// all URL paths that start with "/static/". For matching paths, we strip the
-	// "/static" prefix before the request reaches the file server.
-	mux.Handle("GET /static/", http.StripPrefix("/static", fileServer))
+	// Initialize a new instance of our application struct, containing the
+	// dependencies (for now, just the structured logger).
+	app := &application{
+		logger: logger,
+	}
 
-	mux.HandleFunc("GET /{$}", home)
-	mux.HandleFunc("GET /snippet/view/{id}", snippetView)
-	mux.HandleFunc("GET /snippet/create", snippetCreate)
-	mux.HandleFunc("POST /snippet/create", snippetCreatePost)
+	logger.Info("starting server", "addr", *addr)
 
-	log.Print("starting server on :4000")
-
-	err := http.ListenAndServe(":4000", mux)
-	log.Fatal(err)
+	err := http.ListenAndServe(*addr, app.routes())
+	logger.Error(err.Error())
+	os.Exit(1)
 }
